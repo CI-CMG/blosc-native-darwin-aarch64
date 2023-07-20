@@ -6,7 +6,7 @@
 
     <groupId>io.github.ci-cmg.blosc</groupId>
     <artifactId>blosc-native-darwin-aarch64</artifactId>
-    <version>1.21.4</version>
+    <version>1.21.4.0-SNAPSHOT</version>
 
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -42,6 +42,7 @@
         </snapshotRepository>
     </distributionManagement>
 
+
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -49,31 +50,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <javadoc.version>3.3.1</javadoc.version>
         <jacoco.version>0.8.7</jacoco.version>
+        <sign.serverId>gpg-sign</sign.serverId>
+        <jackson.version>2.11.2</jackson.version>
+        <javadoc.version>3.3.1</javadoc.version>
     </properties>
-
-    <repositories>
-        <repository>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <id>central</id>
-            <name>Central Repository</name>
-            <url>https://repo.maven.apache.org/maven2</url>
-        </repository>
-        <repository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-                <checksumPolicy>fail</checksumPolicy>
-            </snapshots>
-        </repository>
-
-    </repositories>
 
     <reporting>
         <plugins>
@@ -101,24 +81,6 @@
                 <plugin>
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>3.0.0</version>
-                    <dependencies>
-                        <dependency>
-                            <groupId>ant-contrib</groupId>
-                            <artifactId>ant-contrib</artifactId>
-                            <version>1.0b3</version>
-                            <exclusions>
-                                <exclusion>
-                                    <groupId>ant</groupId>
-                                    <artifactId>ant</artifactId>
-                                </exclusion>
-                            </exclusions>
-                        </dependency>
-                        <dependency>
-                            <groupId>org.apache.ant</groupId>
-                            <artifactId>ant-nodeps</artifactId>
-                            <version>1.8.1</version>
-                        </dependency>
-                    </dependencies>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -155,10 +117,6 @@
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>${javadoc.version}</version>
                 </plugin>
-                <plugin>
-                    <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.1.0</version>
-                </plugin>
             </plugins>
         </pluginManagement>
 
@@ -185,7 +143,7 @@
                     <releaseProfiles>release,site-publish</releaseProfiles>
                     <goals>deploy site</goals>
                     <tagNameFormat>v@{project.version}</tagNameFormat>
-                    <arguments>-Pdep-check</arguments>
+                    <arguments>-Pdep-check -D${sign.serverId}</arguments>
                 </configuration>
             </plugin>
 
@@ -220,131 +178,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>pl.project13.maven</groupId>
-                <artifactId>git-commit-id-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>get-the-git-infos</id>
-                        <goals>
-                            <goal>revision</goal>
-                        </goals>
-                        <phase>initialize</phase>
-                    </execution>
-                </executions>
-                <configuration>
-                    <injectAllReactorProjects>true</injectAllReactorProjects>
-                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
-                    <offline>true</offline>
-                    <replacementProperties>
-                        <replacementProperty>
-                            <property>git.remote.origin.url</property>
-                            <propertyOutputSuffix>suffix</propertyOutputSuffix>
-                            <token>^.+/(.+).git$</token>
-                            <value>$1</value>
-                            <regex>true</regex>
-                        </replacementProperty>
-                    </replacementProperties>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.2</version>
-                <executions>
-                    <execution>
-                        <id>list-dependencies</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>list</goal>
-                        </goals>
-                        <configuration>
-                            <outputFile>target/dependencies.txt</outputFile>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>copy-native</id>
-                        <phase>initialize</phase>
-                        <!--            <phase>test-compile</phase>-->
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <includeScope>test</includeScope>
-                            <includeTypes>so,dll,dylib</includeTypes>
-                            <outputDirectory>${project.basedir}/native-libs</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>set-dependency-prop</id>
-                        <phase>initialize</phase>
-                        <configuration>
-                            <exportAntProperties>true</exportAntProperties>
-                            <target>
-                                <taskdef resource="net/sf/antcontrib/antlib.xml" classpathref="maven.plugin.classpath"/>
-                                <var name="snapshot.list" value=""/>
-                                <loadfile property="resolved.dependencies" srcFile="target/dependencies.txt"/>
-                                <for param="line" list="${resolved.dependencies}" delimiter="${line.separator}">
-                                    <sequential>
-                                        <if>
-                                            <contains string="@{line}" substring="SNAPSHOT"/>
-                                            <then>
-                                                <propertyregex property="snapshot.prop" override="true" input="@{line}" regexp="\s*([a-zA-Z0-9_\-\.:]+)\s*.*" select="\1"/>
-                                                <if>
-                                                    <equals arg1="${snapshot.list}" arg2=""/>
-                                                    <then>
-                                                        <var name="snapshot.list" value="${snapshot.prop}"/>
-                                                    </then>
-                                                    <else>
-                                                        <var name="snapshot.list" value="${snapshot.list},${snapshot.prop}"/>
-                                                    </else>
-                                                </if>
-                                            </then>
-                                        </if>
-                                    </sequential>
-                                </for>
-                                <echo>${snapshot.list}</echo>
-                            </target>
-                        </configuration>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>cloudformation</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${basedir}/target/cloudformation</outputDirectory>
-                            <useDefaultDelimiters>false</useDefaultDelimiters>
-                            <delimiters>
-                                <delimiter>@</delimiter>
-                            </delimiters>
-                            <resources>
-                                <resource>
-                                    <directory>cloudformation</directory>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
         </plugins>
     </build>
 
@@ -378,6 +211,29 @@
         </profile>
 
         <profile>
+            <id>dep-check</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>6.5.0</version>
+                        <configuration>
+                            <failBuildOnAnyVulnerability>true</failBuildOnAnyVulnerability>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
             <id>release</id>
             <build>
                 <plugins>
@@ -393,6 +249,20 @@
                                 <phase>pre-site</phase>
                             </execution>
                         </executions>
+                        <configuration>
+                            <injectAllReactorProjects>true</injectAllReactorProjects>
+                            <failOnNoGitDirectory>false</failOnNoGitDirectory>
+                            <offline>true</offline>
+                            <replacementProperties>
+                                <replacementProperty>
+                                    <property>git.remote.origin.url</property>
+                                    <propertyOutputSuffix>suffix</propertyOutputSuffix>
+                                    <token>^.+/(.+).git$</token>
+                                    <value>$1</value>
+                                    <regex>true</regex>
+                                </replacementProperty>
+                            </replacementProperties>
+                        </configuration>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
@@ -420,15 +290,17 @@
                         </executions>
                     </plugin>
                     <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
+                        <groupId>org.simplify4u.plugins</groupId>
+                        <artifactId>sign-maven-plugin</artifactId>
+                        <version>1.0.0</version>
                         <executions>
                             <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
+                                <configuration>
+                                    <skipNoKey>false</skipNoKey>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -446,6 +318,7 @@
                     </plugin>
                     <plugin>
                         <artifactId>maven-resources-plugin</artifactId>
+                        <version>3.1.0</version>
                         <executions>
                             <execution>
                                 <id>index.html</id>
